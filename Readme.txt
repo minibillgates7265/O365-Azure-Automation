@@ -1,53 +1,130 @@
+# Office 365 / Azure / Exchange Automation Scripts by Jackson Paul J.
+
+Welcome to my **O365 / Azure / Exchange Automation Script Collection**, crafted with AI-driven optimization and verified in real-time production environments. These scripts automate crucial IT admin tasks like User Creation, Bulk User Updates, License Assignments, and Group Membership Management.
+
+---
+
+## 📁 Repository Structure
+```
+O365-Azure-Automation/
+├── User_Creation.ps1
+├── Bulk_User_Update_Licenses.ps1
+├── Add_Users_To_AzureGroup.ps1
+└── README.md
+```
+
+---
+
 ## 1. **User_Creation.ps1**
-### Purpose:
-Automates the creation of a single user in Azure Active Directory (AAD) with Office 365 license assignment.
+```powershell
+# User_Creation.ps1
+# Purpose: Automate Single User Creation in Azure AD and Assign License
+# Created by Jackson Paul J.
 
-### Flow:
-- Connects to Azure AD Module.
-- Prompts admin for user details (Name, UPN, UsageLocation).
-- Creates a user with a secure random password.
-- Assigns a predefined license SKU.
+# Connect to Azure AD
+Connect-AzureAD
 
-### Minimum Required Permissions:
-- Azure AD User Administrator
-- License Administrator
+# Prompt for User Details
+$DisplayName = Read-Host "Enter Display Name"
+$UserPrincipalName = Read-Host "Enter User Principal Name (e.g., user@domain.com)"
+$UsageLocation = Read-Host "Enter Usage Location (e.g., IN, US)"
+$LicenseSKU = Read-Host "Enter License SKU PartNumber (e.g., O365_BUSINESS)"
 
-### Safety:
-- Script is idempotent and checks if the user already exists before creating.
+# Check if User Exists
+$user = Get-AzureADUser -Filter "UserPrincipalName eq '$UserPrincipalName'"
+if ($user) {
+    Write-Host "User already exists: $UserPrincipalName" -ForegroundColor Yellow
+    exit
+}
+
+# Generate Random Password
+$PasswordProfile = New-Object -TypeName Microsoft.Open.AzureAD.Model.PasswordProfile
+$PasswordProfile.Password = [System.Web.Security.Membership]::GeneratePassword(12,2)
+$PasswordProfile.ForceChangePasswordNextLogin = $true
+
+# Create User
+New-AzureADUser -DisplayName $DisplayName -UserPrincipalName $UserPrincipalName -AccountEnabled $true -PasswordProfile $PasswordProfile -UsageLocation $UsageLocation -MailNickname ($UserPrincipalName.Split("@")[0])
+
+# Assign License
+$User = Get-AzureADUser -ObjectId $UserPrincipalName
+$License = Get-AzureADSubscribedSku | Where-Object {$_.SkuPartNumber -eq $LicenseSKU}
+Set-AzureADUserLicense -ObjectId $User.ObjectId -AssignedLicenses @{add=$License.SkuId}
+
+Write-Host "User $UserPrincipalName created and license assigned." -ForegroundColor Green
+```
 
 ---
 
 ## 2. **Bulk_User_Update_Licenses.ps1**
-### Purpose:
-Bulk updates Office 365 license assignments for users from a CSV file.
+```powershell
+# Bulk_User_Update_Licenses.ps1
+# Purpose: Bulk Update Licenses for Users from CSV
+# Created by Jackson Paul J.
 
-### Flow:
-- Imports a CSV file containing UPNs.
-- Connects to Azure AD.
-- Iterates through the list and assigns/removes specified licenses.
+# Connect to Azure AD
+Connect-AzureAD
 
-### Minimum Required Permissions:
-- License Administrator
+# Import CSV
+$Users = Import-Csv -Path ".\UsersToUpdate.csv"
 
-### Safety:
-- Includes pre-checks for existing licenses to avoid redundant assignments.
+# License SKU to Assign
+$LicenseSKU = Read-Host "Enter License SKU PartNumber (e.g., O365_BUSINESS)"
+$License = Get-AzureADSubscribedSku | Where-Object {$_.SkuPartNumber -eq $LicenseSKU}
+
+foreach ($user in $Users) {
+    $UPN = $user.UserPrincipalName
+    $ADUser = Get-AzureADUser -ObjectId $UPN
+
+    if ($ADUser) {
+        $AssignedLicenses = (Get-AzureADUserLicenseDetail -ObjectId $ADUser.ObjectId).SkuPartNumber
+
+        if ($AssignedLicenses -contains $LicenseSKU) {
+            Write-Host "$UPN already has $LicenseSKU assigned." -ForegroundColor Yellow
+        } else {
+            Set-AzureADUserLicense -ObjectId $ADUser.ObjectId -AssignedLicenses @{add=$License.SkuId}
+            Write-Host "$UPN assigned $LicenseSKU license." -ForegroundColor Green
+        }
+    } else {
+        Write-Host "User not found: $UPN" -ForegroundColor Red
+    }
+}
+```
 
 ---
 
 ## 3. **Add_Users_To_AzureGroup.ps1**
-### Purpose:
-Adds multiple users to a specified Azure AD Security Group.
+```powershell
+# Add_Users_To_AzureGroup.ps1
+# Purpose: Add Multiple Users to Azure AD Security Group
+# Created by Jackson Paul J.
 
-### Flow:
-- Connects to Azure AD.
-- Reads UPNs from a CSV file.
-- Adds users to a given Group Object ID.
+# Connect to Azure AD
+Connect-AzureAD
 
-### Minimum Required Permissions:
-- Groups Administrator
+# Import CSV with UserPrincipalName column
+$Users = Import-Csv -Path ".\UsersToAdd.csv"
 
-### Safety:
-- Skips adding if the user is already a member.
+# Group Object ID
+$GroupObjectId = Read-Host "Enter Group Object ID"
+
+foreach ($user in $Users) {
+    $UPN = $user.UserPrincipalName
+    $ADUser = Get-AzureADUser -ObjectId $UPN
+
+    if ($ADUser) {
+        $isMember = Get-AzureADGroupMember -ObjectId $GroupObjectId | Where-Object {$_.ObjectId -eq $ADUser.ObjectId}
+
+        if ($isMember) {
+            Write-Host "$UPN is already a member of the group." -ForegroundColor Yellow
+        } else {
+            Add-AzureADGroupMember -ObjectId $GroupObjectId -RefObjectId $ADUser.ObjectId
+            Write-Host "$UPN added to group." -ForegroundColor Green
+        }
+    } else {
+        Write-Host "User not found: $UPN" -ForegroundColor Red
+    }
+}
+```
 
 ---
 
