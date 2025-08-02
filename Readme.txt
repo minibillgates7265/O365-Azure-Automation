@@ -7,10 +7,10 @@ Welcome to my **O365 / Azure / Exchange Automation Script Collection**, crafted 
 ## 📁 Repository Structure
 ```
 O365-Azure-Automation/
-├── User_Creation.ps1
-├── Bulk_User_Update_Licenses.ps1
-├── Add_Users_To_AzureGroup.ps1
-└── README.md
+├── User_Creation.ps1 (Check Branch)
+├── Bulk_User_Update_Licenses.ps1 (Check Branch)
+├── Add_Users_To_AzureGroup.ps1 (Check Branch)
+└── README.md (Manin)
 ```
 
 ---
@@ -153,3 +153,4 @@ This repository aims to showcase my expertise in Office 365, Azure, and Exchange
 
 ## 📄 License
 MIT License.
+
